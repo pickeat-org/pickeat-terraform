@@ -23,3 +23,17 @@ output "s3_static_bucket" {
   description = "Static asset bucket name"
 }
 
+output "app_private_ip" {
+  value       = aws_instance.app.private_ip
+  description = "Private IP of the App Server"
+}
+
+output "db_private_ip" {
+  value       = aws_instance.db.private_ip
+  description = "Private IP of the DB Server (MySQL)"
+}
+
+output "db_security_group_id" {
+  value       = aws_security_group.sg_db.id
+  description = "Security Group ID of the DB Server"
+}

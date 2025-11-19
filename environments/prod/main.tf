@@ -10,6 +10,7 @@ terraform {
 
 provider "aws" {
   region = var.region
+  profile = "pickeat-prod"
 }
 
 ########################
@@ -155,11 +156,6 @@ resource "aws_security_group" "sg_web" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "${var.project_name}-sg-web"
-    Env  = var.environment
-  }
 }
 
 resource "aws_security_group" "sg_app" {
@@ -181,16 +177,40 @@ resource "aws_security_group" "sg_app" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
 
-  tags = {
-    Name = "${var.project_name}-sg-app"
-    Env  = var.environment
+resource "aws_security_group" "sg_db" {
+  name        = "${var.project_name}-sg-db"
+  description = "Allow MySQL from app server"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "MySQL from app"
+    from_port       = var.db_port
+    to_port         = var.db_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.sg_app.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
 ########################
-# EC2 Instances
+# EC2 Instances (each 10GB root)
 ########################
+
+locals {
+  root_volume = [{
+    volume_size           = var.root_volume_size
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }]
+}
 
 resource "aws_instance" "web" {
   ami                    = var.web_ami_id
@@ -198,6 +218,8 @@ resource "aws_instance" "web" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.sg_web.id]
   key_name               = var.ssh_key_name
+
+  root_block_device = local.root_volume
 
   tags = {
     Name = "${var.project_name}-web"
@@ -213,6 +235,8 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.sg_app.id]
   key_name               = var.ssh_key_name
 
+  root_block_device = local.root_volume
+
   tags = {
     Name = "${var.project_name}-app"
     Role = "app"
@@ -220,17 +244,28 @@ resource "aws_instance" "app" {
   }
 }
 
+resource "aws_instance" "db" {
+  ami                    = var.db_ami_id
+  instance_type          = var.db_instance_type
+  subnet_id              = aws_subnet.private_app.id
+  vpc_security_group_ids = [aws_security_group.sg_db.id]
+  key_name               = var.ssh_key_name
+
+  root_block_device = local.root_volume
+
+  tags = {
+    Name = "${var.project_name}-db"
+    Role = "db"
+    Env  = var.environment
+  }
+}
+
 ########################
-# S3 Static
+# S3 Static Hosting
 ########################
 
 resource "aws_s3_bucket" "static" {
   bucket = "${var.project_name}-${var.environment}-${var.unique_suffix}"
-
-  tags = {
-    Name = "${var.project_name}-static"
-    Env  = var.environment
-  }
 }
 
 resource "aws_s3_bucket_public_access_block" "static" {

@@ -6,3 +6,15 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+# AWS Credentials & Keys
+*.pem
+*.key
+aws/
+**/aws/credentials
+**/.aws/credentials
+
+# Terraform sensitive files
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
+*.tfvars.json

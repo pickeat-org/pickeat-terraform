@@ -86,3 +86,27 @@ variable "unique_suffix" {
   type        = string
   default     = "pickeatcheeze"
 }
+
+variable "db_ami_id" {
+  description = "MySQL용 EC2 AMI ID"
+  type        = string
+  default = "ami-09ed9bca6a01cd74a"
+}
+
+variable "db_instance_type" {
+  description = "DB EC2 instance type"
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "db_port" {
+  description = "MySQL Port"
+  type        = number
+  default     = 3306
+}
+
+variable "root_volume_size" {
+  description = "Root EBS Volume size for EC2 instances (in GB)"
+  type        = number
+  default     = 10
+}
