@@ -13,7 +13,7 @@ variable "region" {
 variable "environment" {
   description = "환경 구분 (예: dev, prod)"
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
 variable "vpc_cidr" {
@@ -96,7 +96,7 @@ variable "db_ami_id" {
 variable "db_instance_type" {
   description = "DB EC2 instance type"
   type        = string
-  default     = "t4g.small"
+  default     = "t4g.micro"
 }
 
 variable "db_port" {

@@ -9,7 +9,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.region
+  region  = var.region
   profile = "pickeat-prod"
 }
 
@@ -28,9 +28,10 @@ resource "aws_vpc" "main" {
   }
 }
 
-data "aws_availability_zones" "available" {
-  state = "available"
-}
+# ⚠️ AZ 데이터 소스 제거
+# data "aws_availability_zones" "available" {
+#   state = "available"
+# }
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
@@ -44,7 +45,7 @@ resource "aws_internet_gateway" "igw" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[0]
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = "ap-northeast-2a"  # 하드코딩
   map_public_ip_on_launch = true
 
   tags = {
@@ -56,7 +57,7 @@ resource "aws_subnet" "public" {
 resource "aws_subnet" "private_app" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_app_subnet_cidrs[0]
-  availability_zone = data.aws_availability_zones.available.names[0]
+  availability_zone = "ap-northeast-2a"  # 하드코딩
 
   tags = {
     Name = "${var.project_name}-private-app-1a"
@@ -156,6 +157,11 @@ resource "aws_security_group" "sg_web" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${var.project_name}-sg-web"
+    Env  = var.environment
+  }
 }
 
 resource "aws_security_group" "sg_app" {
@@ -164,7 +170,7 @@ resource "aws_security_group" "sg_app" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Allow Web → App"
+    description     = "Allow Web to App"
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
@@ -176,6 +182,11 @@ resource "aws_security_group" "sg_app" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-sg-app"
+    Env  = var.environment
   }
 }
 
@@ -198,19 +209,16 @@ resource "aws_security_group" "sg_db" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "${var.project_name}-sg-db"
+    Env  = var.environment
+  }
 }
 
 ########################
 # EC2 Instances (each 10GB root)
 ########################
-
-locals {
-  root_volume = [{
-    volume_size           = var.root_volume_size
-    volume_type           = "gp3"
-    delete_on_termination = true
-  }]
-}
 
 resource "aws_instance" "web" {
   ami                    = var.web_ami_id
@@ -219,10 +227,14 @@ resource "aws_instance" "web" {
   vpc_security_group_ids = [aws_security_group.sg_web.id]
   key_name               = var.ssh_key_name
 
-  root_block_device = local.root_volume
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+  }
 
   tags = {
-    Name = "${var.project_name}-web"
+    Name = "${var.project_name}-${var.environment}-web"
     Role = "web"
     Env  = var.environment
   }
@@ -235,10 +247,14 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.sg_app.id]
   key_name               = var.ssh_key_name
 
-  root_block_device = local.root_volume
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+  }
 
   tags = {
-    Name = "${var.project_name}-app"
+    Name = "${var.project_name}-${var.environment}-app"
     Role = "app"
     Env  = var.environment
   }
@@ -251,10 +267,14 @@ resource "aws_instance" "db" {
   vpc_security_group_ids = [aws_security_group.sg_db.id]
   key_name               = var.ssh_key_name
 
-  root_block_device = local.root_volume
+  root_block_device {
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_size
+    delete_on_termination = true
+  }
 
   tags = {
-    Name = "${var.project_name}-db"
+    Name = "${var.project_name}-${var.environment}-db"
     Role = "db"
     Env  = var.environment
   }
@@ -266,6 +286,11 @@ resource "aws_instance" "db" {
 
 resource "aws_s3_bucket" "static" {
   bucket = "${var.project_name}-${var.environment}-${var.unique_suffix}"
+
+  tags = {
+    Name = "${var.project_name}-static"
+    Env  = var.environment
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "static" {
