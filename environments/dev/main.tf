@@ -106,14 +106,14 @@ resource "aws_security_group" "sg_app" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # 필요시 SSH 오픈 (dev 환경에서만, 특정 IP로 제한 권장)
-  # ingress {
-  #   description = "SSH"
-  #   from_port   = 22
-  #   to_port     = 22
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["당신IP/32"]
-  # }
+  # 같은 sg_app 안 인스턴스끼리 내부 통신 허용
+  ingress {
+    description = "App SG self traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
+  }
 
   egress {
     from_port   = 0
@@ -140,6 +140,15 @@ resource "aws_security_group" "sg_db" {
     to_port         = var.db_port
     protocol        = "tcp"
     security_groups = [aws_security_group.sg_app.id]
+  }
+
+  # 같은 sg_db 안 인스턴스끼리 내부 통신 허용
+  ingress {
+    description = "DB SG self traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
   }
 
   egress {

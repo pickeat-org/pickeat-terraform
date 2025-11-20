@@ -146,6 +146,15 @@ resource "aws_security_group" "sg_web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # 같은 sg_web에 속한 인스턴스끼리 모든 트래픽 허용
+  ingress {
+    description = "Web SG self traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -164,12 +173,22 @@ resource "aws_security_group" "sg_app" {
   description = "Allow app traffic from web server"
   vpc_id      = aws_vpc.main.id
 
+  # web SG → app SG (app_port)
   ingress {
     description     = "Allow Web to App"
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
     security_groups = [aws_security_group.sg_web.id]
+  }
+
+  # 같은 sg_app에 속한 인스턴스끼리 모든 트래픽 허용
+  ingress {
+    description = "App SG self traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
   }
 
   egress {
@@ -190,12 +209,22 @@ resource "aws_security_group" "sg_db" {
   description = "Allow MySQL from app server"
   vpc_id      = aws_vpc.main.id
 
+  # app SG → db SG (MySQL 포트)
   ingress {
     description     = "MySQL from app"
     from_port       = var.db_port
     to_port         = var.db_port
     protocol        = "tcp"
     security_groups = [aws_security_group.sg_app.id]
+  }
+
+  # 같은 sg_db에 속한 인스턴스끼리 모든 트래픽 허용
+  ingress {
+    description = "DB SG self traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
   }
 
   egress {
@@ -212,7 +241,7 @@ resource "aws_security_group" "sg_db" {
 }
 
 ########################
-# SSM용 IAM Role / Instance Profile
+# SSM IAM Role / Instance Profile
 ########################
 
 resource "aws_iam_role" "ec2_ssm_role" {
@@ -258,7 +287,7 @@ resource "aws_instance" "web" {
   vpc_security_group_ids = [aws_security_group.sg_web.id]
   key_name               = var.ssh_key_name
 
-  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_instance_profile.name
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_instance_profile.name
 
   root_block_device {
     volume_type           = "gp3"
@@ -280,7 +309,7 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.sg_app.id]
   key_name               = var.ssh_key_name
 
-  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_instance_profile.name
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_instance_profile.name
 
   root_block_device {
     volume_type           = "gp3"
@@ -302,7 +331,7 @@ resource "aws_instance" "db" {
   vpc_security_group_ids = [aws_security_group.sg_db.id]
   key_name               = var.ssh_key_name
 
-  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_instance_profile.name
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_instance_profile.name
 
   root_block_device {
     volume_type           = "gp3"
