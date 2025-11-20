@@ -10,7 +10,7 @@ terraform {
 
 provider "aws" {
   region  = var.region
-  profile = "pickeat-prod"
+  profile = "pickeat"
 }
 
 ########################
@@ -28,11 +28,6 @@ resource "aws_vpc" "main" {
   }
 }
 
-# ⚠️ AZ 데이터 소스 제거
-# data "aws_availability_zones" "available" {
-#   state = "available"
-# }
-
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 
@@ -45,7 +40,7 @@ resource "aws_internet_gateway" "igw" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[0]
-  availability_zone       = "ap-northeast-2a"  # 하드코딩
+  availability_zone       = "ap-northeast-2a"
   map_public_ip_on_launch = true
 
   tags = {
@@ -57,7 +52,7 @@ resource "aws_subnet" "public" {
 resource "aws_subnet" "private_app" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_app_subnet_cidrs[0]
-  availability_zone = "ap-northeast-2a"  # 하드코딩
+  availability_zone = "ap-northeast-2a"
 
   tags = {
     Name = "${var.project_name}-private-app-1a"
@@ -217,6 +212,42 @@ resource "aws_security_group" "sg_db" {
 }
 
 ########################
+# SSM용 IAM Role / Instance Profile
+########################
+
+resource "aws_iam_role" "ec2_ssm_role" {
+  name = "${var.project_name}-${var.environment}-ec2-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-ec2-ssm-role"
+    Env  = var.environment
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_ssm_core" {
+  role       = aws_iam_role.ec2_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ec2_ssm_instance_profile" {
+  name = "${var.project_name}-${var.environment}-ec2-ssm-profile"
+  role = aws_iam_role.ec2_ssm_role.name
+}
+
+########################
 # EC2 Instances (each 10GB root)
 ########################
 
@@ -226,6 +257,8 @@ resource "aws_instance" "web" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.sg_web.id]
   key_name               = var.ssh_key_name
+
+  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_instance_profile.name
 
   root_block_device {
     volume_type           = "gp3"
@@ -247,6 +280,8 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.sg_app.id]
   key_name               = var.ssh_key_name
 
+  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_instance_profile.name
+
   root_block_device {
     volume_type           = "gp3"
     volume_size           = var.root_volume_size
@@ -266,6 +301,8 @@ resource "aws_instance" "db" {
   subnet_id              = aws_subnet.private_app.id
   vpc_security_group_ids = [aws_security_group.sg_db.id]
   key_name               = var.ssh_key_name
+
+  iam_instance_profile   = aws_iam_instance_profile.ec2_ssm_instance_profile.name
 
   root_block_device {
     volume_type           = "gp3"
