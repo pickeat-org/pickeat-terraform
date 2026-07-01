@@ -1,0 +1,24 @@
+# Terraform 로컬 디렉토리 및 provider 바이너리
+**/.terraform/*
+# .terraform.lock.hcl 은 버전 고정을 위해 커밋을 권장하므로 제외하지 않습니다.
+
+# State 파일 (민감 정보 포함 가능 - 커밋 금지)
+*.tfstate
+*.tfstate.*
+
+# Plan 산출물
+*.tfplan
+tfplan
+tfplan-*
+
+# 변수 파일 (환경별 비밀 값 포함 가능)
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# 크래시 로그
+crash.log
+crash.*.log
+
+# IDE
+.idea/
